@@ -1,0 +1,16 @@
+/* 
+	/*  Improperly closed comment (multiple closes) */ 
+*/ 
+read A; B := A+2; print B - A
+if (B * 6.2) > 10 then begin 
+  C := B * -7+6
+  print C; print C * 2 
+  while C < 0 begin 
+      C := C + 10
+	  print C
+	 end
+  end
+print 0 
+
+ 
+ 

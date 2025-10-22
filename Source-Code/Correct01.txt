@@ -1,0 +1,8 @@
+/* This should parse OK */ 
+read A; B := A+2; print B - A
+if (B * 6) > 10 then begin 
+  C := B * -7+6
+  print C; print C * 2 end 
+
+ 
+  

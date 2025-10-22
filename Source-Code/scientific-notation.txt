@@ -1,0 +1,14 @@
+/* scientific notation (not supported)  */ 
+read A; B := A+2; print B - A
+if (B * 6.2E6) > 10 then begin 
+  C := B * -7.3+6
+  print C; print C * 2 
+  while C < 0 begin 
+      C := C + 10
+	  print C
+	 end
+  end
+print 0 
+
+ 
+ 
