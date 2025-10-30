@@ -20,7 +20,7 @@
 
 (module+ main
   ;; run a single test file:
-  (process-one (rel ".." "tests" "invalid" "bad-Comment-2.txt"))
+  (process-one (rel ".." "tests" "valid" "SkipComment01.txt"))
 
   #; ;; uncomment to scan all .txt under tests/{valid,invalid}
   (for ([dir (list (rel ".." "tests" "valid")

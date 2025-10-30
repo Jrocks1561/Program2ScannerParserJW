@@ -1,4 +1,2 @@
-/* hello
-   across lines
-read x  inline */ */   ;
- /* nested opens are ignored  print y */
+/*  := = < > <= >= <>
+( ) + - 

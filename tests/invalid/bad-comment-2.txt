@@ -1,5 +1,5 @@
-/* /* Improperly closed comment (no close - will probably parse 
-    as empty file, no output.) */ */
+/* Improperly closed comment (no close - will probably parse 
+    as empty file, no output.) 
 
 read A; B := A+2; print B - A
 if (B * 6.2) > 10 then begin 
