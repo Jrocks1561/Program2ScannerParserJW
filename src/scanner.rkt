@@ -163,13 +163,6 @@
                     (error (format "Invalid: Not an end to comment at ~a:~a"
                                  comment-start-line comment-start-col))]
                    
-                   ;; Found nested /* - This is an error
-                   [(and (char=? (lookahead scanner) #\/)
-                         (char=? (lookahead scanner 1) #\*))
-                    (error (format "Invalid: Nested comment /* at ~a:~a"
-                                 (input-textanner-line scanner)
-                                 (input-textanner-col scanner)))]
-                   
                    ;; Found */
                    [(and (char=? (lookahead scanner) #\*)
                          (char=? (lookahead scanner 1) #\/))
@@ -177,7 +170,7 @@
                     (advance scanner)
                     (outer-loop current-pos)] ; Look for more comments
                    
-                   ;; Keep scanning
+                   ;; Keep scanning - any /* inside is just part of comment
                    [else
                     (advance scanner)
                     (scan-comment)])))]
