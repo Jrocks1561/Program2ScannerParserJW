@@ -1,5 +1,5 @@
 #lang racket
-(require "scanner.rkt" "tokens.rkt")
+(require "scanner.rkt")
 
 (provide parse-file)          ; main entry (file -> AST)
 ;; (provide parse-program)    ; optional export if you want

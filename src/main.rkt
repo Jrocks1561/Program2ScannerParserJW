@@ -1,35 +1,31 @@
 #lang racket
-(require "scanner.rkt" "parser.rkt")
+(require "scanner.rkt"         ; same folder
+         racket/runtime-path)
 
-;; Flip as you go
-(define SHOW-TOKENS? #t)
-(define RUN-PARSER?  #f)
+(define-runtime-path HERE ".")
+(define (rel . parts) (apply build-path HERE parts))
 
-;; Pretty-print tokens for scanner testing
 (define (pp-token t)
   (printf "~a(~a) @ ~a:~a\n"
           (token-type t) (token-lexeme t) (token-line t) (token-col t)))
 
-;; Run one file: optionally token-dump, optionally parse
 (define (process-one path)
-  (printf "==> %s\n" path)
+  (printf "==> ~a\n" path)
   (define src (file->string path))
-  (with-handlers ([exn:fail? (λ(e) (printf "ERROR: ~a\n" (exn-message e)))])
-    (when SHOW-TOKENS?
-      (define sc (make-scanner src))
-      (let loop ([t (next-token sc)])
-        (pp-token t)
-        (unless (eq? (token-type t) 'EOF) (loop (next-token sc)))))
-    (when RUN-PARSER?
-      (void (parse-file path))
-      (printf "OK (parsed)\n"))))
+  (define sc (make-scanner src))
+  (let loop ([t (next-token sc)])
+    (pp-token t)
+    (unless (eq? (token-type t) 'EOF)
+      (loop (next-token sc)))))
 
 (module+ main
-  ;; Start with one known-good file, then switch to batch mode
-  (process-one "tests/valid/Correct01.txt")
+  ;; run a single test file:
+  (process-one (rel ".." "tests" "invalid" "bad-Comment-2.txt"))
 
-  #; ; when ready:
-  (for ([dir '("tests/valid" "tests/invalid")] #:when (directory-exists? dir))
-    (for ([p (in-directory dir)])
-      (when (regexp-match? #px"\\.txt$" (path->string p))
-        (process-one (path->string p))))))
+  #; ;; uncomment to scan all .txt under tests/{valid,invalid}
+  (for ([dir (list (rel ".." "tests" "valid")
+                   (rel ".." "tests" "invalid"))]
+        #:when (directory-exists? dir))
+    (for ([p (in-directory dir)]
+          #:when (regexp-match? #px"\\.txt$" (path->string p)))
+      (process-one p))))
