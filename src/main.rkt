@@ -5,8 +5,9 @@
 (define-runtime-path HERE ".")
 (define (rel . parts) (apply build-path HERE parts))
 
+;; Show lexeme with escapes so "\n" prints as "\\n"
 (define (pp-token t)
-  (printf "~a(~a) @ ~a:~a\n"
+  (printf "~a(~s) @ ~a:~a\n"
           (token-type t) (token-lexeme t) (token-line t) (token-col t)))
 
 (define (process-one path)
@@ -20,7 +21,7 @@
 
 (module+ main
   ;; run a single test file:
-  (process-one (rel ".." "tests" "valid" "SkipComment01.txt"))
+  (process-one (rel ".." "tests" "invalid" "scientific-notation.txt"))
 
   #; ;; uncomment to scan all .txt under tests/{valid,invalid}
   (for ([dir (list (rel ".." "tests" "valid")

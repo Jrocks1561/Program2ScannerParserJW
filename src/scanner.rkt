@@ -1,35 +1,50 @@
 #lang racket
+;;ChatGPT created an outline for a scanner helped with organization most of these comments will be reomoved in this push
+;;SOME comments were modified for clairty and also some deleted
 
-;; ===================== TOKEN MODEL ==========================
+;;I finished debugging the scanner and i believe it is now fully functional
+
+;;trasnsparent allows easier debugging can remove later
+;;Token struct object
 (struct token (type lexeme line col) #:transparent)
 
-;; ===================== SCANNER STATE ========================
-;; --- CHANGED: added last-tt to support contextual signed numbers
+
+;; NOTE: added last-tt to support - numbers as copilot suggested.. (talk about in video)
+;;wasnt sure if it was required but i see - nums in some of the correct.txt files that it is needed 
 (struct input-textanner (input-text len pos line col eof? last-tt) #:mutable)
 
-;; Exports
+;;tracker
+(define (make-input-textanner input-text)
+  (input-textanner input-text (string-length input-text) 0 1 1 #f 'BOF))
+
+;; --- emit that updates last-tt
+;;how scanner tells what the last token typpe was NOTE: important for - numbers
+(define (emit scanner type lexeme line col)
+  (set-input-textanner-last-tt! scanner type)
+  (token type lexeme line col))
+
+;; shorten name 
+(define make-scanner make-input-textanner)
+
+;; exports what we are allowed to use in other files
 (provide (struct-out token)
          (struct-out input-textanner)
          make-input-textanner
          make-scanner
          next-token)
 
-;; Factory to build a Scanner (don't shadow the struct constructor)
-(define (make-input-textanner input-text)
-  (input-textanner input-text (string-length input-text) 0 1 1 #f 'BOF))
-
-;; Optional alias so existing code that calls make-scanner still works
-(define make-scanner make-input-textanner)
 
 ;; ===================== BASIC HELPERS ========================
-;; Look at current (k=0) or future char, or #\nul if past end
+
+;; Look at current (k=0) or future char essentiallt the 1 lookahead as required
+;; #u\0000 == null char -- Thank you copilot
 (define (lookahead scanner [k 0])
   (define i (+ (input-textanner-pos scanner) k))
   (if (or (>= i (input-textanner-len scanner)) (< i 0))
       #\u0000
       (string-ref (input-textanner-input-text scanner) i)))
 
-;; Move forward by 1, updating line/col
+;; Move forward by 1 updating line/col
 (define (advance scanner)
   (when (< (input-textanner-pos scanner) (input-textanner-len scanner))
     (define ch (lookahead scanner))
@@ -40,16 +55,14 @@
           (set-input-textanner-col!  scanner 1))
         (set-input-textanner-col! scanner (add1 (input-textanner-col scanner))))))
 
-;; Emit token and update last-tt
-(define (emit scanner type lexeme line col)
-  (set-input-textanner-last-tt! scanner type)
-  (token type lexeme line col))
 
-;; True when position is at/after len
+;; ensures not at EOF
 (define (at-eof? scanner)
   (>= (input-textanner-pos scanner) (input-textanner-len scanner)))
 
+
 ;; ===================== SKIP / IGNORE ========================
+
 ;; Skip whitespace except NEWLINE (so parser can see line breaks)
 (define (skip-spaces-and-tabs scanner)
   (let loop ()
@@ -61,27 +74,27 @@
       (loop))))
 
 ;; If "/*" present, consume until first "*/" (non-nested, may span lines)
+;;notes for pantropto video -neededed to include logic that ignored a /* in a commnet /* 
 (define (skip-comment-if-present scanner)
   (when (and (not (at-eof? scanner))
              (char=? (lookahead scanner) #\/)
              (char=? (lookahead scanner 1) #\*))
     (define start-line (input-textanner-line scanner))
     (define start-col  (input-textanner-col scanner))
-    ;; advance past opening /*
+    ;; past opening /*
     (advance scanner) (advance scanner)
-    ;; loop until first */
     (let loop ()
       (cond
         [(at-eof? scanner)
          (error 'scanner
-                (format "Unterminated comment started at ~a:~a"
+                (format "ERROR: comment started at ~a:~a and not finished before EOF"
                         start-line start-col))]
-        [(and (char=? (lookahead scanner) #\*)
-              (char=? (lookahead scanner 1) #\/))
-         ;; found the first closing */
-         (advance scanner) (advance scanner)]
+        [(char=? (lookahead scanner) #\*)
+         (advance scanner)
+         (if (char=? (lookahead scanner) #\/)
+             (advance scanner)     
+             (loop))]                 
         [else
-         ;; inner "/*" are treated as text; just advance
          (advance scanner)
          (loop)]))))
 
@@ -97,22 +110,30 @@
     (define after (input-textanner-pos scanner))
     (when (< before after) (loop))))
 
-;; If current char is '\n' or '\r', consume it and emit a NEWLINE token.
-;; Returns a token when newline consumed; returns #f otherwise (important).
+;; If current char is '\n' or '\r', consume it and emit a NEWLINE token
+;; Returns a token when newline consumed returns #f otherwise 
+;;This function also checks for line breaks mid statement was very confusing copilot stered me here
+;;bringing a whole new amount of bugs to fix
 (define (emit-newline-if-present scanner)
   (if (and (not (input-textanner-eof? scanner))
            (or (char=? (lookahead scanner) #\newline)
                (char=? (lookahead scanner) #\return)))
       (let ([line (input-textanner-line scanner)]
-            [col  (input-textanner-col scanner)])
-        (when (memq (input-textanner-last-tt scanner)
-                    '(ID NUM PLUS MINUS STAR SLASH ASSIGN EQ NE LT LE GT GE LPAREN))
-          (printf "line break mid statement at ~a:~a\n" line col))
+            [col  (input-textanner-col scanner)]
+            [last (input-textanner-last-tt scanner)])
+        ;; If a newline appears right after something that
+        ;; cannot legally end a statement, flag it.
+        (when (memq last '(ID NUM PLUS MINUS STAR SLASH ASSIGN EQ NE LT LE GT GE LPAREN))
+          (printf "ERROR: line break mid statement at ~a:~a\n" line col))
         (advance scanner)
         (emit scanner 'NEWLINE "\n" line col))
       #f))
 
+
 ;; ===================== TABLES / PREDICATES ==================
+
+;;A large portion of this code was outlines for me by ChatGPT
+;;required helper functions for scanning tokens
 (define KEYWORDS
   (hash "if" 'IF "then" 'THEN "else" 'ELSE
         "while" 'WHILE "begin" 'BEGIN "end" 'END
@@ -123,12 +144,17 @@
 (define (digit? ch)   (regexp-match? #px"[0-9]" (string ch)))
 (define (nonzero? ch) (regexp-match? #px"[1-9]" (string ch)))
 
-;; Where a signed number may start (context for '+' or '-')
+;; Where a neg number will be one token with - in front.
 (define (num-may-start-after? last-tt)
-  (memq last-tt '(BOF NEWLINE LPAREN ASSIGN EQ NE LT LE GT GE THEN BEGIN READ PRINT SEMI)))
+  (memq last-tt
+        '(BOF NEWLINE LPAREN ASSIGN EQ NE LT LE GT GE THEN BEGIN READ PRINT SEMI
+          PLUS MINUS STAR SLASH)))
 
 ;; ===================== LEXEME SCANNERS ======================
+
+
 ;; Identifier/keyword: alpha, then (alnum | '_' | '-')*
+;;as Required by assignment
 (define (scan-id-or-kw scanner)
   (define ln (input-textanner-line scanner))
   (define cl (input-textanner-col scanner))
@@ -137,7 +163,7 @@
 
   (define ch0 (lookahead scanner))
   (unless (alpha? ch0)
-    (error 'scanner (format "Invalid identifier start at ~a:~a" ln cl)))
+    (error 'scanner (format "ERROR: Invalid identifier start at ~a:~a" ln cl)))
   (push! ch0) (advance scanner)
 
   (let loop ()
@@ -150,7 +176,6 @@
   (define kw (hash-ref KEYWORDS lex #f))
   (emit scanner (or kw 'ID) lex ln cl))
 
-;; Number per grammar:
 ;; num -> sign? int | sign? int '.' digit+
 ;; int: '0' | nonzero digit*
 ;; sign -> '+' | '-' | ε
@@ -166,67 +191,101 @@
     (when (or (char=? s #\+) (char=? s #\-))
       (push! s) (advance scanner)))
 
-  ;; integer part
+  ;; ------- integer part -------
+  (define started-with-zero? #f)
   (define first (lookahead scanner))
   (cond
     [(char=? first #\0)
-     (push! first) (advance scanner)]
+     (set! started-with-zero? #t)
+     (push! first) (advance scanner)
+     ;; not allowd multi-digit integers starting with 0
+     (when (digit? (lookahead scanner))
+       (error 'scanner
+              (format "ERROR: Leading zeros not allowed at ~a:~a" ln cl)))]
     [(nonzero? first)
      (push! first) (advance scanner)
      (let loop ()
        (define d (lookahead scanner))
-       (when (digit? d) (push! d) (advance scanner) (loop)))]
+       (when (digit? d)
+         (push! d) (advance scanner) (loop)))]
+   ;;generic 
     [else
-     (error 'scanner (format "Invalid number start at ~a:~a" ln cl))])
+     (error 'scanner (format "ERROR: Invalid number start at ~a:~a" ln cl))])
 
-  ;; fractional part (no exponent allowed)
+  ;; Reject 0x / 0b / 0o after a leading 0 (hex, binary, octal)
+  ;;Ai only chnage was the ERROR message
+  (when (and started-with-zero?
+             (memq (lookahead scanner) '(#\x #\X #\b #\B #\o #\O)))
+    (error 'scanner
+           (format "ERROR: Hexadecimal, binary, or octal notation not supported at ~a:~a" ln cl)))
+
+  ;; ------- fractional part (floating point) -------
   (when (char=? (lookahead scanner) #\.)
     (push! #\.) (advance scanner)
     (unless (digit? (lookahead scanner))
-      (error 'scanner (format "Fractional part requires digit after '.' at ~a:~a" ln cl)))
+      (error 'scanner (format "ERROR: Fractional part requires digit after '.' at ~a:~a" ln cl)))
     (let loop ()
       (define d (lookahead scanner))
       (when (digit? d)
-        (push! d)
-        (advance scanner)
-        (loop))))
+        (push! d) (advance scanner) (loop))))
+
+  ;; ------- reject scientific notation -------
+  (when (or (char=? (lookahead scanner) #\e)
+            (char=? (lookahead scanner) #\E))
+    ;; If it looks like an exponent (e/E then optional sign then digit), reject
+    (define s1 (lookahead scanner 1))
+    (define d0 (if (or (char=? s1 #\+) (char=? s1 #\-))
+                   (lookahead scanner 2)
+                   s1))
+    (when (digit? d0)
+      (error 'scanner
+             (format "ERROR: Scientific notation not allowed at ~a:~a" ln cl))))
+
   (emit scanner 'NUM (get-output-string buf) ln cl))
 
+
+
 ;; ===================== MAIN API: next-token =================
+
+
 (define (next-token scanner)
   (let/ec return
-    ;; 0) if eof? flag set, always return EOF
+    ;; if eof always return EOF
     (when (input-textanner-eof? scanner)
       (return (token 'EOF "" (input-textanner-line scanner) (input-textanner-col scanner))))
 
-    ;; 1) Skip ignorable (spaces/tabs and /*…*/), but leave NEWLINE for parser rules
+    ;;Skip ignorable (spaces/tabs and /*…*/), but leave NEWLINE for parser rules
+    ;;**note to self might need ot update logic here for parser
     (skip-ignorable! scanner)
 
-    ;; Unmatched closing comment check
+    ;; Unmatched closing comment check 
     (when (and (not (at-eof? scanner))
-               (char=? (lookahead scanner) #\*)
-               (char=? (lookahead scanner 1) #\/))
-      (error 'scanner
-             (format "Invalid: Unmatched end of comment */ at ~a:~a"
-                     (input-textanner-line scanner)
-                     (input-textanner-col scanner))))
+           (char=? (lookahead scanner) #\*)
+           (char=? (lookahead scanner 1) #\/))
+  (error 'scanner
+         (format "ERROR: Unmatched end of comment */ at ~a:~a"
+                 (input-textanner-line scanner)
+                 (input-textanner-col scanner))))
+
+    
 
     ;; EOF after skipping? return EOF and set flag
     (when (at-eof? scanner)
       (set-input-textanner-eof?! scanner #t)
       (return (token 'EOF "" (input-textanner-line scanner) (input-textanner-col scanner))))
 
-    ;; 2) Emit NEWLINE token if present, and return it immediately
+    ;;Emit NEWLINE token if present, and return it immediately
     (define nl (emit-newline-if-present scanner))
     (when nl (return nl))
 
-    ;; 3) Dispatch by next characters
+    ;; Dispatch by next characters
     (define ln (input-textanner-line scanner))
     (define cl (input-textanner-col scanner))
     (define ch (lookahead scanner))
 
     (cond
       ;; Two-char operators first
+      ;;**busy work after you write one copilot cna make the rest note in overiew video
       [(and (char=? ch #\:) (char=? (lookahead scanner 1) #\=))
        (advance scanner) (advance scanner)
        (emit scanner 'ASSIGN ":=" ln cl)]
@@ -248,18 +307,21 @@
       [(char=? ch #\<) (advance scanner) (emit scanner 'LT "<" ln cl)]
       [(char=? ch #\>) (advance scanner) (emit scanner 'GT ">" ln cl)]
 
+       [(char=? ch #\-)
+       (if (and (digit? (lookahead scanner 1))
+                (num-may-start-after? (input-textanner-last-tt scanner)))
+           (scan-number scanner #:has-sign? #t)
+           (begin (advance scanner) (emit scanner 'MINUS "-" ln cl)))]
+
+
+      ;;dont know if we will ever need this but since we need the - for signed numbers i added it
       [(char=? ch #\+)
        (if (and (digit? (lookahead scanner 1))
                 (num-may-start-after? (input-textanner-last-tt scanner)))
            ;; Do not advance; scan-number will consume the sign.
            (scan-number scanner #:has-sign? #t)
            (begin (advance scanner) (emit scanner 'PLUS "+" ln cl)))]
-
-      [(char=? ch #\-)
-       (if (and (digit? (lookahead scanner 1))
-                (num-may-start-after? (input-textanner-last-tt scanner)))
-           (scan-number scanner #:has-sign? #t)
-           (begin (advance scanner) (emit scanner 'MINUS "-" ln cl)))]
+           
 
       [(char=? ch #\*) (advance scanner) (emit scanner 'STAR "*" ln cl)]
       [(char=? ch #\/) (advance scanner) (emit scanner 'SLASH "/" ln cl)]
@@ -270,6 +332,14 @@
       ;; Identifiers / keywords
       [(alpha? ch)
        (scan-id-or-kw scanner)]
+
+      ;; Illegal number start: '.' not preceded by a digit
+      [(char=? ch #\.)
+        (error 'scanner
+         (format "ERROR: Number must start with a digit before '.' at ~a:~a"
+                (input-textanner-line scanner)
+                (input-textanner-col scanner)))]
+
 
       ;; Numbers (unsigned)
       [(digit? ch)
