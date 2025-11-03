@@ -1,4 +1,4 @@
-/* Improperly closed comment (no close - will probably parse 
+/*  Improperly closed comment (no close - will probably parse 
     as empty file, no output.) 
 
 read A; B := A+2; print B - A

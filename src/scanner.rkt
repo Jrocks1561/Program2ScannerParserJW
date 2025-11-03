@@ -2,7 +2,6 @@
 ;;ChatGPT created an outline for a scanner helped with organization most of these comments will be reomoved in this push
 ;;SOME comments were modified for clairty and also some deleted
 
-;;I finished debugging the scanner and i believe it is now fully functional
 
 ;;trasnsparent allows easier debugging can remove later
 ;;Token struct object
@@ -121,14 +120,11 @@
       (let ([line (input-textanner-line scanner)]
             [col  (input-textanner-col scanner)]
             [last (input-textanner-last-tt scanner)])
-        ;; If a newline appears right after something that
-        ;; cannot legally end a statement, flag it.
-        (when (memq last '(ID NUM PLUS MINUS STAR SLASH ASSIGN EQ NE LT LE GT GE LPAREN))
-          (printf "ERROR: line break mid statement at ~a:~a\n" line col))
+        ;; (when (memq last '(ID NUM PLUS MINUS STAR SLASH ASSIGN EQ NE LT LE GT GE LPAREN))
+        ;;   (printf "ERROR: line break mid statement at ~a:~a\n" line col))
         (advance scanner)
         (emit scanner 'NEWLINE "\n" line col))
       #f))
-
 
 ;; ===================== TABLES / PREDICATES ==================
 
