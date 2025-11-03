@@ -1,57 +1,94 @@
-Scanner spec (exact tokens to recognize)
+Program 2 — Scanner & Parser (Racket)
+Overview
 
-Keywords: if then else while begin end read print
+This project implements a scanner and parser in Racket for a small teaching language.
 
-Ops/punct: + - * / := ( ) ;
+The scanner reads an input file and produces a stream of tokens with line/column tracking.
 
-Comparators: = > < >= <= <>
+The parser validates syntax and builds a structured tree that’s printed in a readable, pretty parse-tree/AST format (not a raw/unformatted dump).
 
-IDs: alpha (alnum | _ | -)*
+Supported statements include READ, PRINT, assignments, and IF … THEN … BEGIN … END blocks, with nesting and standard expression precedence.
 
-Numbers:
+Prerequisites
 
-INT: optional sign; if >1 digit then first digit ≠ 0
+Racket (latest stable)
 
-FLOAT: optional sign; digits '.' digits (must have ≥1 digit after dot; 3. invalid, 3.0 valid)
+Optional editor setup:
 
-No scientific/hex/oct/bin
+VS Code with the Racket extension (recommended)
 
-Structure: NEWLINE at each physical line end; EOF at end
+OR DrRacket
 
-Comments: /* … */ (first */ closes; can span lines; not nested) → skip
+How to Run
+A) VS Code (Racket extension)
 
-Whitespace: skip (except NEWLINE emitted as a token)
+Open the project folder in VS Code.
 
-Include line and column on each token for clear errors.
+Open src/main.rkt.
 
-Parser checklist (one function per rule)
+Set the input file path inside main.rkt to the test file you want to run (e.g., a file under tests/valid or tests/invalid).
 
-program → stmt-list EOF
+Run the file via the Racket extension (Run/Execute command).
 
-stmt-list → stmt stmt-list | ε
+B) Command Line
 
-Accept NEWLINE between statements
+From the project root:
 
-stmt → if-stmt | while-stmt | assign-stmt | read-stmt | print-stmt | compound-stmt
+racket src/main.rkt
 
-compound-stmt → begin stmt { ; stmt }* end
 
-if-stmt → if expr comp-op expr then begin stmt-list end [ else begin stmt-list end ]
+Tip: You can also run from inside src/ with:
 
-while-stmt → while expr comp-op expr begin stmt-list end
+racket main.rkt
 
-assign-stmt → ID := expr
 
-read-stmt → read ID
+The program will read the chosen test file, run scanning/parsing, print a pretty parse tree/AST, and report any syntax errors with line/column locations.
 
-print-stmt → print expr
+Features
 
-Expressions (enforce precedence & no line breaks):
+Tokenization with positions: lexemes include line and column for precise diagnostics.
 
-expr → term + expr | term - expr | term comp-op term | term
+Meaningful syntax errors: clear messages pointing to where parsing failed.
 
-term → factor * term | factor / term | factor
+Readable output: prints a pretty parse tree/AST that’s easy to inspect.
 
-factor → ID | num | ( expr )
+Tests included: sample inputs under tests/valid and tests/invalid.
 
-If NEWLINE appears before an expression is complete → error: “expression cannot cross a line break”
+Note on print/debug statements:
+Some debug printfs remain in the source (for troubleshooting) but are not used during normal runs. They were helpful while building the scanner and have been left in place but are disabled/by-passed in the current flow.
+
+Project Structure
+Program2ScannerParserJW/
+│
+├─ src/
+│  ├─ main.rkt     # Entry point — wires scanner & parser and selects input file
+│  ├─ scanner.rkt  # Lexical analyzer (tokenizer)
+│  └─ parser.rkt   # Syntax analyzer / pretty parse-tree/AST builder
+│
+├─ tests/
+│  ├─ valid/       # Valid input files
+│  └─ invalid/     # Intentionally broken inputs for error handling
+│
+└─ README.md
+
+Error Handling
+
+The scanner and parser both surface clear, line/column-aware errors.
+
+Invalid cases (e.g., missing END, malformed numbers, bad operators) should appear in tests/invalid/ and produce helpful diagnostics.
+
+Version Control & AI Assistance
+
+Frequent, descriptive commits throughout development on GitHub.
+
+Source comments mark where AI assistance informed changes (ChatGPT / GitHub Copilot / Claude). All final logic and tests were reviewed and validated by the author.
+
+Legacy debug prints were retained for future troubleshooting but are not part of normal output.
+
+Author & Course
+
+JoshaLynn Worth
+University of Missouri–Kansas City (UMKC)
+COMP_SCI 431 – Programming Languages / Operating Systems integration project
+
+Acknowledgments: ChatGPT, GitHub Copilot, and Claude were used as coding co-pilots for brainstorming, refactors, and documentation polish; final decisions, testing, and submissions are the author’s.
